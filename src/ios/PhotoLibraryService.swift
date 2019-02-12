@@ -532,7 +532,7 @@ final class PhotoLibraryService {
                     completion(nil, "Writing image to album resulted empty asset")
                     return
                 }
-
+                sleep(1)
                 self.putMediaToAlbum(assetsLibrary, url: assetUrl, album: album, completion: { (error) in
                     if error != nil {
                         completion(nil, error)
@@ -607,7 +607,7 @@ final class PhotoLibraryService {
                     completion(nil, "Writing video to album resulted empty asset")
                     return
                 }
-
+                sleep(1)
                 self.putMediaToAlbum(assetsLibrary, url: assetUrl, album: album, completion: { (error) in
   
                     
