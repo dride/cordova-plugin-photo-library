@@ -63,7 +63,7 @@ public class PhotoLibrary extends CordovaPlugin {
               final double chunkTimeSec = options.getDouble("chunkTimeSec");
               final boolean includeAlbumData = options.getBoolean("includeAlbumData");
 
-              if (!cordova.hasPermission(READ_EXTERNAL_STORAGE)) {
+              if (!cordova.hasPermission(READ_EXTERNAL_STORAGE) && !cordova.hasPermission(READ_MEDIA_VIDEO)) {
                 callbackContext.error(service.PERMISSION_ERROR);
                 return;
               }
@@ -100,7 +100,7 @@ public class PhotoLibrary extends CordovaPlugin {
           public void run() {
             try {
 
-              if (!cordova.hasPermission(READ_EXTERNAL_STORAGE)) {
+              if (!cordova.hasPermission(READ_EXTERNAL_STORAGE) && !cordova.hasPermission(READ_MEDIA_VIDEO)) {
                 callbackContext.error(service.PERMISSION_ERROR);
                 return;
               }
@@ -128,7 +128,7 @@ public class PhotoLibrary extends CordovaPlugin {
               final int thumbnailHeight = options.getInt("thumbnailHeight");
               final double quality = options.getDouble("quality");
 
-              if (!cordova.hasPermission(READ_EXTERNAL_STORAGE)) {
+              if (!cordova.hasPermission(READ_EXTERNAL_STORAGE) && !cordova.hasPermission(READ_MEDIA_VIDEO)) {
                 callbackContext.error(service.PERMISSION_ERROR);
                 return;
               }
@@ -152,7 +152,7 @@ public class PhotoLibrary extends CordovaPlugin {
 
               final String photoId = args.getString(0);
 
-              if (!cordova.hasPermission(READ_EXTERNAL_STORAGE)) {
+              if (!cordova.hasPermission(READ_EXTERNAL_STORAGE) && !cordova.hasPermission(READ_MEDIA_VIDEO)) {
                 callbackContext.error(service.PERMISSION_ERROR);
                 return;
               }
@@ -182,7 +182,11 @@ public class PhotoLibrary extends CordovaPlugin {
           final boolean write = options.getBoolean("write");
 
           if (read && !cordova.hasPermission(READ_EXTERNAL_STORAGE)
-            || write && !cordova.hasPermission(WRITE_EXTERNAL_STORAGE)) {
+            || write && !cordova.hasPermission(WRITE_EXTERNAL_STORAGE)
+            || (
+                  android.os.Build.VERSION.SDK_INT > android.os.Build.VERSION_CODES.R &&
+                 !cordova.hasPermission(READ_MEDIA_VIDEO)
+             ) ) {
             requestAuthorization(read, write);
           } else {
             callbackContext.success();
@@ -229,7 +233,7 @@ public class PhotoLibrary extends CordovaPlugin {
               final String url = args.getString(0);
               final String album = args.getString(1);
 
-              if (!cordova.hasPermission(WRITE_EXTERNAL_STORAGE)) {
+              if (!cordova.hasPermission(WRITE_EXTERNAL_STORAGE) && !cordova.hasPermission(READ_MEDIA_VIDEO)) {
                 callbackContext.error(service.PERMISSION_ERROR);
                 return;
               }
@@ -347,6 +351,7 @@ public class PhotoLibrary extends CordovaPlugin {
 
   private static final String READ_EXTERNAL_STORAGE = android.Manifest.permission.READ_EXTERNAL_STORAGE;
   private static final String WRITE_EXTERNAL_STORAGE = Manifest.permission.WRITE_EXTERNAL_STORAGE;
+  private static final String READ_MEDIA_VIDEO = Manifest.permission.READ_MEDIA_VIDEO;
   private static final int REQUEST_AUTHORIZATION_REQ_CODE = 0;
 
   private PhotoLibraryService service;
@@ -380,12 +385,17 @@ public class PhotoLibrary extends CordovaPlugin {
 
     List<String> permissions = new ArrayList<String>();
 
-    if (read) {
-      permissions.add(READ_EXTERNAL_STORAGE);
-    }
+    if (android.os.Build.VERSION.SDK_INT > android.os.Build.VERSION_CODES.R){
+      permissions.add(READ_MEDIA_VIDEO);
+    }else {
 
-    if (write) {
-      permissions.add(WRITE_EXTERNAL_STORAGE);
+      if (read) {
+        permissions.add(READ_EXTERNAL_STORAGE);
+      }
+
+      if (write) {
+        permissions.add(WRITE_EXTERNAL_STORAGE);
+      }
     }
 
     cordova.requestPermissions(this, REQUEST_AUTHORIZATION_REQ_CODE, permissions.toArray(new String[0]));
