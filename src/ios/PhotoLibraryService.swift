@@ -214,7 +214,7 @@ final class PhotoLibraryService {
 
             if(mediaType == "image") {
                 PHImageManager.default().requestImageData(for: asset, options: self.imageRequestOptions) {
-                    (imageData: Data?, dataUTI: String?, orientation: UIImageOrientation, info: [AnyHashable: Any]?) in
+                    (imageData: Data?, dataUTI: String?, orientation: UIImage.Orientation, info: [AnyHashable: Any]?) in
 
                     if(imageData == nil) {
                         completion(nil)
@@ -356,7 +356,7 @@ final class PhotoLibraryService {
             let asset = obj as! PHAsset
 
             PHImageManager.default().requestImageData(for: asset, options: self.imageRequestOptions) {
-                (imageData: Data?, dataUTI: String?, orientation: UIImageOrientation, info: [AnyHashable: Any]?) in
+                (imageData: Data?, dataUTI: String?, orientation: UIImage.Orientation, info: [AnyHashable: Any]?) in
 
                 guard let image = imageData != nil ? UIImage(data: imageData!) : nil else {
                     completion(nil)
@@ -388,7 +388,7 @@ final class PhotoLibraryService {
 
             if(mediaType == "image") {
                 PHImageManager.default().requestImageData(for: asset, options: self.imageRequestOptions) {
-                    (imageData: Data?, dataUTI: String?, orientation: UIImageOrientation, info: [AnyHashable: Any]?) in
+                    (imageData: Data?, dataUTI: String?, orientation: UIImage.Orientation, info: [AnyHashable: Any]?) in
 
                     if(imageData == nil) {
                         completion(nil)
@@ -493,7 +493,7 @@ final class PhotoLibraryService {
         }
 
         // Permission was manually denied by user, open settings screen
-        let settingsUrl = URL(string: UIApplicationOpenSettingsURLString)
+        let settingsUrl = URL(string: UIApplication.openSettingsURLString)
         if let url = settingsUrl {
             UIApplication.shared.openURL(url)
             // TODO: run callback only when return ?
@@ -532,7 +532,7 @@ final class PhotoLibraryService {
                     completion(nil, "Writing image to album resulted empty asset")
                     return
                 }
-                sleep(1)
+
                 self.putMediaToAlbum(assetsLibrary, url: assetUrl, album: album, completion: { (error) in
                     if error != nil {
                         completion(nil, error)
@@ -570,84 +570,81 @@ final class PhotoLibraryService {
 
     }
 
-    func saveVideo(_ url: String, album: String, completion: @escaping (_ url: URL?, _ error: String?)->Void) { // TODO: should return library item
+    func saveVideo(_ url: String, album: String, completion: @escaping (_ libraryItem: NSDictionary?, _ error: String?)->Void) {
+
         guard let videoURL = URL(string: url) else {
             completion(nil, "Could not parse DataURL")
             return
         }
-        
+
         let assetsLibrary = ALAssetsLibrary()
-        
+
         func saveVideo(_ photoAlbum: PHAssetCollection) {
-            
+
             // TODO: new way, seems not supports dataURL
             //            if !UIVideoAtPathIsCompatibleWithSavedPhotosAlbum(videoURL.relativePath!) {
             //                completion(url: nil, error: "Provided video is not compatible with Saved Photo album")
             //                return
             //            }
             //            UISaveVideoAtPathToSavedPhotosAlbum(videoURL.relativePath!, nil, nil, nil)
-            
-            if #available(iOS 9.0, *) {
-                PHPhotoLibrary.shared().performChanges({
-                    let assetRequest = PHAssetChangeRequest.creationRequestForAssetFromVideo(atFileURL: videoURL)!
-                    let albumChangeRequest = PHAssetCollectionChangeRequest(for: photoAlbum)
-                    let placeHolder = assetRequest.placeholderForCreatedAsset
-                    albumChangeRequest?.addAssets([placeHolder!] as NSArray)
-                }) { (isSuccess, error) in
-                    if isSuccess {
-                        completion(videoURL, nil)
-                    } else {
-                        completion(nil, "Could not write video to album:  \(String(describing: error))")
-                    }
-                }
-            } else {
-                if !assetsLibrary.videoAtPathIs(compatibleWithSavedPhotosAlbum: videoURL) {
-                    
-                    // TODO: try to convert to MP4 as described here?: http://stackoverflow.com/a/39329155/1691132
-                    completion(nil, "Provided video is not compatible with Saved Photo album")
+
+            if !assetsLibrary.videoAtPathIs(compatibleWithSavedPhotosAlbum: videoURL) {
+
+                // TODO: try to convert to MP4 as described here?: http://stackoverflow.com/a/39329155/1691132
+
+                completion(nil, "Provided video is not compatible with Saved Photo album")
+                return
+            }
+
+            assetsLibrary.writeVideoAtPath(toSavedPhotosAlbum: videoURL) { (assetUrl: URL?, error: Error?) in
+
+                if error != nil {
+                    completion(nil, "Could not write video to album: \(error)")
                     return
                 }
-                
-                assetsLibrary.writeVideoAtPath(toSavedPhotosAlbum: videoURL) { (assetUrl: URL?, error: Error?) in
-                    
-                    if error != nil {
-                        completion(nil, "Could not write video to album: \(String(describing: error))")
-                        return
-                    }
-                    
-                    guard let assetUrl = assetUrl else {
-                        completion(nil, "Writing video to album resulted empty asset")
-                        return
-                    }
-                    
-                    self.putMediaToAlbum(assetsLibrary, url: assetUrl, album: album, completion: { (error) in
-                        if error != nil {
-                            completion(nil, error)
-                        } else {
-                            completion(assetUrl, nil)
-                        }
-                    })
+
+                guard let assetUrl = assetUrl else {
+                    completion(nil, "Writing video to album resulted empty asset")
+                    return
                 }
-                
+
+                self.putMediaToAlbum(assetsLibrary, url: assetUrl, album: album, completion: { (error) in
+
+
+                    if error != nil {
+                        completion(nil, error)
+                    } else {
+                        let fetchResult = PHAsset.fetchAssets(withALAssetURLs: [assetUrl], options: nil)
+                        var libraryItem: NSDictionary? = nil
+                        if fetchResult.count == 1 {
+                            let asset = fetchResult.firstObject
+                            if let asset = asset {
+                                libraryItem = self.assetToLibraryItem(asset: asset, useOriginalFileNames: false, includeAlbumData: true)
+                            }
+                        }
+                        completion(libraryItem, nil)
+                    }
+                })
             }
+
         }
-        
+
         if let photoAlbum = PhotoLibraryService.getPhotoAlbum(album) {
             saveVideo(photoAlbum)
             return
         }
-        
+
         PhotoLibraryService.createPhotoAlbum(album) { (photoAlbum: PHAssetCollection?, error: String?) in
-            
+
             guard let photoAlbum = photoAlbum else {
                 completion(nil, error)
                 return
             }
-            
+
             saveVideo(photoAlbum)
-            
+
         }
-        
+
     }
 
     struct PictureData {
@@ -669,7 +666,7 @@ final class PhotoLibraryService {
     fileprivate func getDataFromURL(_ url: String) throws -> Data {
         if url.hasPrefix("data:") {
 
-            guard let match = self.dataURLPattern.firstMatch(in: url, options: NSRegularExpression.MatchingOptions(rawValue: 0), range: NSMakeRange(0, url.characters.count)) else { // TODO: firstMatchInString seems to be slow for unknown reason
+            guard let match = self.dataURLPattern.firstMatch(in: url, options: NSRegularExpression.MatchingOptions(rawValue: 0), range: NSMakeRange(0, url.count)) else { // TODO: firstMatchInString seems to be slow for unknown reason
                 throw PhotoLibraryError.error(description: "The dataURL could not be parsed")
             }
             let dataPos = match.range(at: 0).length
@@ -731,10 +728,10 @@ final class PhotoLibraryService {
         var mimeType: String?
 
         if (imageHasAlpha(image)){
-            data = UIImagePNGRepresentation(image)
+            data = image.pngData()
             mimeType = data != nil ? "image/png" : nil
         } else {
-            data = UIImageJPEGRepresentation(image, CGFloat(quality))
+            data = image.jpegData(compressionQuality: CGFloat(quality))
             mimeType = data != nil ? "image/jpeg" : nil
         }
 
